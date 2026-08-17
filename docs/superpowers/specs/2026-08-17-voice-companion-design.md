@@ -8,7 +8,9 @@
 
 A cross-platform (Android + iOS) **voice companion**: you talk to it out loud,
 it talks back in a distinct character voice, it has switchable **personas**, and
-it **remembers you** across sessions. Version 1 is **tap-to-talk**; a background
+it **remembers you** across sessions. Every persona shares a **Core Character
+Layer** — a common "soul" that is intelligent, balanced, emotionally aware, and a
+genuine thinking/creative partner. Version 1 is **tap-to-talk**; a background
 **wake word** is deferred to v2.
 
 The system is split into two pieces:
@@ -27,15 +29,27 @@ hosting cost). When the app is published, the same backend is deployed.
 - Hold-to-talk voice loop: speak → hear the persona reply, on a real Android phone.
 - Multiple switchable personas defined in config, each with its own personality
   and voice.
+- A shared **Core Character Layer** giving every persona these qualities:
+  highly intelligent (reasons carefully, goes deep), low-bias / balanced
+  (multiple perspectives, anti-sycophancy, honest but kind), situationally aware
+  (reads and matches emotional register), tactfully mood-lightening (levity when
+  things get heavy, without dismissing), reflective (reflects your patterns back,
+  asks good questions), a **thinking partner** (helps you think deeper, pushes
+  back, sharpens ideas), and **creativity-releasing** (offers unexpected angles,
+  brainstorms).
 - Long-term memory of the user, **shared across all personas** (every character
   knows the same facts about the user).
 - Cross-platform Flutter codebase (test on Android first; iOS buildable later).
 - API keys never ship inside the app.
 - Graceful degradation when any cloud service is unavailable.
+- Snappy enough to feel like a conversation.
 
 ### Non-Goals (deferred to v2+)
 - Background / always-on wake word (v1 is tap-to-talk).
-- Response streaming for lower latency.
+- Response streaming / sentence-level TTS for lower latency.
+- Extended (adaptive) thinking — omitted in v1 to keep voice latency low.
+- A dedicated "reflect with me" introspection feature (introspection is a
+  behavioral trait of the Core Character Layer in v1, not a separate mode).
 - Cloud hosting / public app-store release (design must not preclude it, but it
   is not part of v1).
 - Per-persona private memory (v1 memory is shared-only).
@@ -49,8 +63,10 @@ hosting cost). When the app is published, the same backend is deployed.
 | Architecture | Thin app + brain backend ("Approach A") | Keys stay server-side; memory centralized; iterate personas without app rebuilds |
 | Voice stack | **Hybrid**: on-device STT + cloud LLM + cloud TTS | Fast/free STT locally; best brain and voice in the cloud |
 | STT | On-device speech recognition (`speech_to_text`) | Low latency, free, no audio leaves device unnecessarily |
-| LLM | Anthropic **Claude** (latest capable model) | Quality; user is a Claude user |
+| LLM | Anthropic **Claude**, default `claude-opus-4-8`, per-persona configurable | Highest intelligence; matches the "highly intelligent" goal |
+| Thinking | **None in v1** (adaptive thinking omitted) | Opus 4.8 runs without thinking when `thinking` is omitted → low voice latency |
 | TTS | **ElevenLabs** (per-persona voice), with on-device fallback | Character-grade voices; degrade gracefully |
+| Character model | **Core Character Layer** (shared "soul") + per-persona flavor | One consistent, high-quality character under many skins |
 | Memory | **mem0**, scoped **per user, shared across personas** | Companion "friends who all know you" feel |
 | Trigger | **Tap-to-talk** (hold to talk) in v1 | Dodges mobile background-mic limits; wake word is v2 |
 | Backend deployment | Local during testing, deployed on publish | No hosting cost until needed |
@@ -62,12 +78,12 @@ hosting cost). When the app is published, the same backend is deployed.
 │         Flutter app          │  ───────────────────────────────▶ │        FastAPI backend         │
 │  (Android / iOS)             │                                    │  ("the brain")                 │
 │                              │  POST /chat {userId,personaId,text}│                                │
-│  • Talk screen (hold-to-talk)│                                    │  • Persona registry (YAML)     │
-│  • On-device STT             │  ◀─────────────────────────────── │  • mem0 memory (retrieve/write) │
-│  • Persona picker            │   {replyText, audio(base64),       │  • SQLite recent-turn store    │
-│  • Audio playback            │    conversationId}                 │  • Claude client               │
-│  • Settings (backend URL)    │                                    │  • ElevenLabs client           │
-│  • flutter_tts fallback voice│                                    │  • .env secrets                │
+│  • Talk screen (hold-to-talk)│                                    │  • Core Character Layer        │
+│  • On-device STT             │  ◀─────────────────────────────── │  • Persona registry (YAML)     │
+│  • Persona picker            │   {replyText, audio(base64),       │  • mem0 memory (retrieve/write) │
+│  • Audio playback            │    conversationId}                 │  • SQLite recent-turn store    │
+│  • Settings (backend URL)    │                                    │  • Claude client               │
+│  • flutter_tts fallback voice│                                    │  • ElevenLabs client           │
 └─────────────────────────────┘                                    └──────────────────────────────┘
 ```
 
@@ -79,11 +95,12 @@ hosting cost). When the app is published, the same backend is deployed.
 4. Backend retrieves relevant memories for `userId` (mem0) + recent turns for
    `conversationId` (SQLite).
 5. Backend assembles the Claude prompt:
-   `system = persona.system_prompt + rendered memories`, then recent history,
-   then the new user message.
+   `system = Core Character Layer + persona.system_prompt + rendered memories`,
+   then recent history, then the new user message. No `thinking` parameter is
+   sent (fast path); `max_tokens` is small (spoken replies are short).
 6. Claude returns the reply text (in character).
 7. Backend writes the exchange to mem0 (extracts/updates facts about the user)
-   and appends the turn to SQLite. Memory write may be fire-and-forget so it does
+   and appends the turn to SQLite. The memory write is fire-and-forget so it does
    not block the response.
 8. Backend calls ElevenLabs with `persona.voice_id` → MP3 audio.
 9. Backend responds `{replyText, audio(base64), conversationId}`.
@@ -96,8 +113,7 @@ hosting cost). When the app is published, the same backend is deployed.
 **Screens**
 - **Talk screen:** large press-and-hold talk button, live transcript, current
   persona name/avatar, "speaking" indicator, conversation transcript list.
-- **Persona picker:** list of characters from `GET /personas`; tap to switch;
-  switching sets the active `personaId`.
+- **Persona picker:** list of characters from `GET /personas`; tap to switch.
 - **Settings:** backend base URL + bearer token, user id/display name.
 
 **Key packages**
@@ -123,6 +139,13 @@ hosting cost). When the app is published, the same backend is deployed.
 - Auth: static bearer token via `Authorization: Bearer <token>` middleware.
   Sufficient for personal use; replace with per-user auth before public release.
 
+**Core Character Layer**
+- A single system-prompt fragment, stored as `personas/_core_character.md`,
+  prepended to *every* persona's own `system_prompt`. It encodes the shared
+  qualities from §2 Goals (intelligence, low bias, situational awareness,
+  mood-lightening, reflectiveness, thinking-partner, creativity). Editing this
+  one file changes the "soul" of every persona at once.
+
 **Persona registry**
 - One YAML file per persona in `personas/`:
   ```yaml
@@ -130,14 +153,16 @@ hosting cost). When the app is published, the same backend is deployed.
   name: Sage
   description: A calm, thoughtful companion.
   system_prompt: |
-    You are Sage, a warm, unhurried companion who ...
+    You are Sage, a warm, unhurried companion who ...   # persona FLAVOR only;
+                                                         # the Core Character Layer
+                                                         # is prepended automatically
   voice_id: <elevenlabs-voice-id>
-  model: claude-...            # latest capable Claude model id
-  temperature: 0.8
+  model: claude-opus-4-8
+  max_tokens: 1024
   greeting: "Hey, it's good to hear you."
   ```
-- Loaded at startup; a persona is added by dropping in a new file. (A management
-  endpoint / hot-reload is a possible later enhancement, not v1.)
+- Loaded at startup; a persona is added by dropping in a new file. The effective
+  system prompt is `core_character + "\n\n" + persona.system_prompt`.
 
 **Memory (mem0)**
 - Retrieve: `mem0.search(query=user_text, user_id=userId)` → top-k memories,
@@ -171,8 +196,9 @@ hosting cost). When the app is published, the same backend is deployed.
 ## 8. Testing strategy (TDD)
 
 **Backend**
-- Persona loading: valid/invalid/missing YAML.
-- Prompt assembly: memories + history + persona prompt composed correctly.
+- Core Character Layer + persona loading: valid/invalid/missing files; effective
+  prompt is core + flavor.
+- Prompt assembly: core + persona + memories + history composed correctly.
 - Memory: retrieve-before / write-after with mem0 mocked.
 - `/chat` endpoint via FastAPI `TestClient` with Claude + ElevenLabs clients
   mocked (happy path + each degradation branch).
@@ -201,12 +227,12 @@ ai-companion/
 │  ├─ app/                 # FastAPI application
 │  │  ├─ main.py
 │  │  ├─ routes/           # /health, /personas, /chat
-│  │  ├─ personas/         # loader + registry
+│  │  ├─ personas/         # loader + registry + core-character loader
 │  │  ├─ memory/           # mem0 wrapper
 │  │  ├─ providers/        # llm (Claude), tts (ElevenLabs) clients
 │  │  ├─ store/            # SQLite conversation store
 │  │  └─ config.py
-│  ├─ personas/            # *.yaml persona files
+│  ├─ personas/            # _core_character.md + *.yaml persona files
 │  ├─ tests/
 │  └─ pyproject.toml / requirements.txt
 ├─ app/                    # Flutter application
@@ -222,9 +248,10 @@ ai-companion/
 
 ## 11. Open items for the implementation plan
 
-- Exact Claude model id (use the latest capable model at build time; consult the
-  claude-api reference before wiring the client).
+- Exact Claude model id: default `claude-opus-4-8`; per-persona `model` allows
+  `claude-sonnet-5` (cheaper/faster) or Opus 4.8 **fast mode** as latency levers.
 - ElevenLabs voice ids for the initial personas (needs an ElevenLabs account).
 - Whether to return audio inline (base64) or via a short-lived URL — base64 is
   simplest for v1.
-- Initial persona set (start with 1–2 well-defined characters).
+- Initial persona set (start with 1–2 well-defined characters on top of the
+  shared Core Character Layer).
