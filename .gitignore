@@ -1,0 +1,4 @@
+.claude/
+.superpowers/
+backend/.venv/
+backend/*.db
