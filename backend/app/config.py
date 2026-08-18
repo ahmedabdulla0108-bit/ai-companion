@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     openai_api_key: str = ""        # OmniRoute virtual key
     openai_model: str = ""          # model OmniRoute routes on (overrides persona.model)
 
+    # STT (speech-to-text) provider. "device" = on-device recognition in the
+    # app (default). "whisper" = server-side transcription via an OpenAI-audio
+    # compatible endpoint (e.g. Groq Whisper). Blank whisper_* fields fall back
+    # to the openai_* (LLM gateway) values, so one Groq key covers both.
+    stt_provider: str = "device"
+    whisper_base_url: str = ""      # falls back to openai_base_url
+    whisper_api_key: str = ""       # falls back to openai_api_key
+    whisper_model: str = "whisper-large-v3-turbo"
+
     # TTS provider selection. "elevenlabs" (default) or "kokoro" (local
     # OpenAI-audio-compatible server, e.g. Kokoro-FastAPI at kokoro_base_url).
     tts_provider: str = "elevenlabs"

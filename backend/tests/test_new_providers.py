@@ -2,8 +2,10 @@ import pytest
 
 import app.providers.llm as llmmod
 import app.providers.tts as ttsmod
+import app.providers.transcribe as trmod
 from app.providers.llm import OpenAiCompatLlmClient, LlmError
 from app.providers.tts import KokoroTtsClient
+from app.providers.transcribe import WhisperTranscribeClient, TranscribeError
 
 
 class _Resp:
@@ -73,3 +75,30 @@ def test_kokoro_uses_explicit_voice_and_degrades_on_error(monkeypatch):
     monkeypatch.setattr(ttsmod.httpx, "post", fake_post)
     c = KokoroTtsClient("http://localhost:8880/v1")
     assert c.synthesize("hi", "am_adam") is None
+
+
+def test_whisper_transcribe_returns_text(monkeypatch):
+    captured = {}
+
+    def fake_post(url, headers=None, files=None, data=None, timeout=None):
+        captured.update(url=url, headers=headers, files=files, data=data)
+        return _Resp(json_data={"text": "  hello world  "})
+
+    monkeypatch.setattr(trmod.httpx, "post", fake_post)
+    c = WhisperTranscribeClient("https://api.groq.com/openai/v1", "gk", model="whisper-large-v3-turbo")
+    out = c.transcribe(b"AUDIO", filename="a.m4a")
+    assert out == "hello world"  # trimmed
+    assert captured["url"] == "https://api.groq.com/openai/v1/audio/transcriptions"
+    assert captured["data"]["model"] == "whisper-large-v3-turbo"
+    assert captured["headers"]["Authorization"] == "Bearer gk"
+    assert captured["files"]["file"][0] == "a.m4a"
+
+
+def test_whisper_transcribe_wraps_errors(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(trmod.httpx, "post", boom)
+    c = WhisperTranscribeClient("https://x/v1", "gk")
+    with pytest.raises(TranscribeError):
+        c.transcribe(b"A")

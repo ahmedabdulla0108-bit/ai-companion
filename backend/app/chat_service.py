@@ -7,28 +7,37 @@ from app.store.conversation import ConversationStore
 from app.memory.store import MemoryStore
 from app.providers.llm import LlmClient
 from app.providers.tts import TtsClient
+from app.providers.transcribe import TranscribeClient
 
 @dataclass
 class ChatResult:
     reply_text: str
     audio_b64: str | None
     conversation_id: str
+    user_text: str = ""
 
 class ChatService:
     def __init__(self, core: str, personas: dict[str, Persona],
                  store: ConversationStore, memory: MemoryStore,
-                 llm: LlmClient, tts: TtsClient):
+                 llm: LlmClient, tts: TtsClient,
+                 transcribe: TranscribeClient | None = None):
         self.core = core
         self.personas = personas
         self.store = store
         self.memory = memory
         self.llm = llm
         self.tts = tts
+        self.transcribe = transcribe
 
     def handle(self, user_id: str, persona_id: str, text: str,
-               conversation_id: str | None) -> ChatResult:
+               conversation_id: str | None,
+               audio: bytes | None = None) -> ChatResult:
         persona = self.personas[persona_id]  # KeyError -> 404 at route layer
         conversation_id = conversation_id or uuid.uuid4().hex
+
+        # If raw audio was sent, transcribe it server-side (Whisper).
+        if audio is not None and self.transcribe is not None:
+            text = self.transcribe.transcribe(audio)
 
         memories = self.memory.search(user_id, text)
         system = effective_system_prompt(self.core, persona, memories)
@@ -50,4 +59,4 @@ class ChatService:
         audio_b64 = base64.b64encode(audio).decode("ascii") if audio else None
 
         return ChatResult(reply_text=reply, audio_b64=audio_b64,
-                          conversation_id=conversation_id)
+                          conversation_id=conversation_id, user_text=text)

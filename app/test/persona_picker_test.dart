@@ -1,4 +1,5 @@
 // app/test/persona_picker_test.dart
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +16,7 @@ class _TwoPersonaBackend implements BackendClient {
         Persona(id: 'nova', name: 'Nova', description: 'bright', greeting: 'g'),
       ];
   @override
-  Future<ChatResult> chat({required String userId, required String personaId, required String text, String? conversationId}) async =>
+  Future<ChatResult> chat({required String userId, required String personaId, String text = '', Uint8List? audioBytes, String? conversationId}) async =>
       ChatResult(replyText: '', audioBytes: null, conversationId: 'c1');
 }
 

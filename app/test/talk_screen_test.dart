@@ -1,4 +1,5 @@
 // app/test/talk_screen_test.dart
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,19 +15,20 @@ class _NoopBackend implements BackendClient {
   @override
   Future<List<Persona>> listPersonas() async => [];
   @override
-  Future<ChatResult> chat({required String userId, required String personaId, required String text, String? conversationId}) async =>
+  Future<ChatResult> chat({required String userId, required String personaId, String text = '', Uint8List? audioBytes, String? conversationId}) async =>
       ChatResult(replyText: 'hi', audioBytes: null, conversationId: 'c1');
 }
 
 void main() {
-  testWidgets('shows persona and idle hint', (tester) async {
+  testWidgets('shows persona and start-conversation button when idle', (tester) async {
     final controller = ConversationController(
-      backend: _NoopBackend(), speak: (_, __) async {}, userId: 'u', personaId: 'sage');
+      backend: _NoopBackend(), speak: (_, _) async {}, userId: 'u', personaId: 'sage');
     await tester.pumpWidget(ProviderScope(
       overrides: [conversationControllerProvider.overrideWith((ref) => controller)],
       child: const MaterialApp(home: TalkScreen()),
     ));
     expect(find.textContaining('sage'), findsWidgets);
-    expect(find.text('Hold to talk'), findsOneWidget);
+    expect(find.text('Start conversation'), findsOneWidget);
+    expect(find.text('Tap to start talking'), findsOneWidget);
   });
 }
