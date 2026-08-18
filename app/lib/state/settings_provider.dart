@@ -19,6 +19,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   Future<void> save(AppSettings s) async {
+    // No-op when nothing changed, so re-saving identical settings doesn't
+    // rebuild downstream providers (which would reset the active conversation).
+    if (s == state) return;
     state = s;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(s.toJson()));

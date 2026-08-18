@@ -26,4 +26,14 @@ class AppSettings {
       );
 
   static const empty = AppSettings(backendUrl: '', bearerToken: '', userId: 'me');
+
+  @override
+  bool operator ==(Object other) =>
+      other is AppSettings &&
+      other.backendUrl == backendUrl &&
+      other.bearerToken == bearerToken &&
+      other.userId == userId;
+
+  @override
+  int get hashCode => Object.hash(backendUrl, bearerToken, userId);
 }
