@@ -20,18 +20,22 @@ class Settings(BaseSettings):
     openai_api_key: str = ""        # OmniRoute virtual key
     openai_model: str = ""          # model OmniRoute routes on (overrides persona.model)
 
-    # STT (speech-to-text) provider. "device" = on-device recognition in the
-    # app (default). "whisper" = server-side transcription via an OpenAI-audio
-    # compatible endpoint (e.g. Groq Whisper). Blank whisper_* fields fall back
-    # to the openai_* (LLM gateway) values, so one Groq key covers both.
-    stt_provider: str = "device"
+    # STT (speech-to-text) provider. "whisper" (default) = server-side
+    # transcription via an OpenAI-audio compatible endpoint (e.g. Groq Whisper);
+    # the app is audio-first, so this matches the app out of the box. Blank
+    # whisper_* fields fall back to the openai_* (LLM gateway) values, so the
+    # one Groq key set for the LLM covers transcription too. "device" is legacy
+    # on-device recognition (the app no longer sends text).
+    stt_provider: str = "whisper"
     whisper_base_url: str = ""      # falls back to openai_base_url
     whisper_api_key: str = ""       # falls back to openai_api_key
     whisper_model: str = "whisper-large-v3-turbo"
 
-    # TTS provider selection. "elevenlabs" (default) or "kokoro" (local
-    # OpenAI-audio-compatible server, e.g. Kokoro-FastAPI at kokoro_base_url).
-    tts_provider: str = "elevenlabs"
+    # TTS provider selection. "kokoro" (default) = local/free OpenAI-audio
+    # server (e.g. Kokoro-FastAPI); the bundled personas ship real Kokoro
+    # voices, so this works out of the box. "elevenlabs" is opt-in and requires
+    # setting a real per-persona ElevenLabs voice_id.
+    tts_provider: str = "kokoro"
     kokoro_base_url: str = ""       # e.g. http://localhost:8880/v1 (local) or a hosted URL
     kokoro_api_key: str = ""        # blank for local Kokoro-FastAPI; set for hosted
     kokoro_voice: str = "af_heart"  # fallback Kokoro voice when a persona has none
