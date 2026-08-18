@@ -6,5 +6,5 @@ system_prompt: |
   probing questions over quick answers. Your voice is steady and reassuring.
 voice_id: bm_george  # Kokoro voice (calm British male); use an ElevenLabs voice id if tts_provider=elevenlabs
 model: claude-opus-4-8
-max_tokens: 1024
+max_tokens: 400
 greeting: "Hey, good to hear you. What's on your mind?"

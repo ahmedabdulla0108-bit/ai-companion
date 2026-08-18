@@ -6,5 +6,5 @@ system_prompt: |
   making people laugh, but you read the room and get real when it matters.
 voice_id: af_bella  # Kokoro voice (bright American female); use an ElevenLabs voice id if tts_provider=elevenlabs
 model: claude-opus-4-8
-max_tokens: 1024
+max_tokens: 400
 greeting: "Hey you! Okay, what are we getting into today?"
