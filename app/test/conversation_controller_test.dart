@@ -1,5 +1,4 @@
 // app/test/conversation_controller_test.dart
-import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/models/chat_result.dart';
 import 'package:app/models/persona.dart';
@@ -21,7 +20,7 @@ class _FakeBackend implements BackendClient {
 void main() {
   test('happy path moves idle->...->idle and records messages', () async {
     final backend = _FakeBackend();
-    final c = ConversationController(backend: backend, speak: (_, __) async {}, userId: 'u1', personaId: 'sage');
+    final c = ConversationController(backend: backend, speak: (_, _) async {}, userId: 'u1', personaId: 'sage');
     await c.submitUserText('hi');
     expect(c.state.phase, TalkPhase.idle);
     expect(c.state.messages.map((m) => m.text), ['hi', 'reply to hi']);
@@ -30,9 +29,20 @@ void main() {
 
   test('backend failure sets error phase', () async {
     final backend = _FakeBackend()..fail = true;
-    final c = ConversationController(backend: backend, speak: (_, __) async {}, userId: 'u1', personaId: 'sage');
+    final c = ConversationController(backend: backend, speak: (_, _) async {}, userId: 'u1', personaId: 'sage');
     await c.submitUserText('hi');
     expect(c.state.phase, TalkPhase.error);
     expect(c.state.errorMessage, isNotNull);
+  });
+
+  test('switching personas after a turn clears conversation id and history', () async {
+    final backend = _FakeBackend();
+    final c = ConversationController(backend: backend, speak: (_, _) async {}, userId: 'u1', personaId: 'sage');
+    await c.submitUserText('hi');
+    expect(c.state.conversationId, 'c1'); // established by the first turn
+    c.setPersona('nova');
+    expect(c.state.activePersonaId, 'nova');
+    expect(c.state.conversationId, isNull); // must reset — not leak into the new persona
+    expect(c.state.messages, isEmpty);
   });
 }

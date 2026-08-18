@@ -27,12 +27,18 @@ class ConversationState {
     required this.errorMessage,
   });
 
+  // Sentinel so `copyWith(conversationId: null)` can EXPLICITLY clear the id
+  // (needed when switching personas), while omitting it preserves the current
+  // value. A plain `conversationId ?? this.conversationId` cannot tell "clear"
+  // apart from "unchanged".
+  static const Object _keep = Object();
+
   ConversationState copyWith({
     TalkPhase? phase,
     String? partialTranscript,
     List<ChatMessage>? messages,
     String? activePersonaId,
-    String? conversationId,
+    Object? conversationId = _keep,
     String? errorMessage,
   }) =>
       ConversationState(
@@ -40,7 +46,9 @@ class ConversationState {
         partialTranscript: partialTranscript ?? this.partialTranscript,
         messages: messages ?? this.messages,
         activePersonaId: activePersonaId ?? this.activePersonaId,
-        conversationId: conversationId ?? this.conversationId,
+        conversationId: identical(conversationId, _keep)
+            ? this.conversationId
+            : conversationId as String?,
         errorMessage: errorMessage,
       );
 
