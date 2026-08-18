@@ -41,3 +41,42 @@ class ElevenLabsTtsClient:
         except Exception:  # noqa: BLE001 - graceful degradation
             logger.exception("ElevenLabs TTS error")
             return None
+
+
+class KokoroTtsClient:
+    """TTS via a local Kokoro server exposing the OpenAI audio API
+    (POST {base_url}/audio/speech), e.g. Kokoro-FastAPI. Free/local, returns
+    MP3. Falls back to default_voice when a persona still carries the
+    ElevenLabs placeholder voice id."""
+
+    def __init__(self, base_url: str, default_voice: str = "af_heart",
+                 api_key: str = "", timeout: float = 60.0):
+        self._base_url = base_url.rstrip("/")
+        self._default_voice = default_voice
+        self._api_key = api_key  # blank for local Kokoro-FastAPI; set for hosted
+        self._timeout = timeout
+
+    def synthesize(self, text: str, voice_id: str) -> bytes | None:
+        voice = voice_id if voice_id and not voice_id.startswith("REPLACE_") else self._default_voice
+        headers = {"content-type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        try:
+            resp = httpx.post(
+                f"{self._base_url}/audio/speech",
+                headers=headers,
+                json={
+                    "model": "kokoro",
+                    "input": text,
+                    "voice": voice,
+                    "response_format": "mp3",
+                },
+                timeout=self._timeout,
+            )
+            if resp.status_code == 200:
+                return resp.content
+            logger.error("Kokoro TTS failed: %s %s", resp.status_code, resp.text[:200])
+            return None
+        except Exception:  # noqa: BLE001 - graceful degradation
+            logger.exception("Kokoro TTS error")
+            return None

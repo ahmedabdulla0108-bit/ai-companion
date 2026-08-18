@@ -8,31 +8,22 @@ import 'package:app/screens/settings_screen.dart';
 class TalkScreen extends ConsumerWidget {
   const TalkScreen({super.key});
 
+  bool _active(TalkPhase p) =>
+      p == TalkPhase.listening || p == TalkPhase.thinking || p == TalkPhase.speaking;
+
   String _hint(TalkPhase p) => switch (p) {
-        TalkPhase.idle => 'Hold to talk',
+        TalkPhase.idle => 'Tap to start talking',
         TalkPhase.listening => 'Listening…',
         TalkPhase.thinking => 'Thinking…',
         TalkPhase.speaking => 'Speaking…',
-        TalkPhase.error => 'Tap to retry',
+        TalkPhase.error => 'Tap to start again',
       };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(conversationControllerProvider);
     final controller = ref.read(conversationControllerProvider.notifier);
-    final stt = ref.read(sttServiceProvider);
-
-    Future<void> onPressStart() async {
-      final ok = await stt.init();
-      if (!ok) return;
-      controller.setListening();
-      await stt.startListening(controller.setPartial);
-    }
-
-    Future<void> onPressEnd() async {
-      final finalText = await stt.stopListening();
-      await controller.submitUserText(finalText);
-    }
+    final active = _active(state.phase);
 
     return Scaffold(
       appBar: AppBar(
@@ -68,28 +59,51 @@ class TalkScreen extends ConsumerWidget {
                     ),
                   ),
                 if (state.partialTranscript.isNotEmpty)
-                  Text(state.partialTranscript, style: const TextStyle(color: Colors.grey)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(state.partialTranscript,
+                          style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                    ),
+                  ),
                 if (state.errorMessage != null)
-                  Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
+                  ),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_hint(state.phase)),
-                const SizedBox(height: 12),
+                Text(_hint(state.phase), style: const TextStyle(fontSize: 16)),
+                const SizedBox(height: 16),
                 GestureDetector(
-                  onTapDown: (_) => onPressStart(),
-                  onTapUp: (_) => onPressEnd(),
-                  onTapCancel: onPressEnd,
+                  onTap: () {
+                    if (active) {
+                      controller.stopConversation();
+                    } else {
+                      controller.startConversation();
+                    }
+                  },
                   child: CircleAvatar(
-                    radius: 48,
-                    backgroundColor:
-                        state.phase == TalkPhase.listening ? Colors.red : Colors.blue,
-                    child: const Icon(Icons.mic, size: 40, color: Colors.white),
+                    radius: 52,
+                    backgroundColor: active ? Colors.red : Colors.green,
+                    child: Icon(
+                      active ? Icons.stop : Icons.mic,
+                      size: 44,
+                      color: Colors.white,
+                    ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  active ? 'End conversation' : 'Start conversation',
+                  style: const TextStyle(fontSize: 14, color: Colors.black54),
                 ),
               ],
             ),

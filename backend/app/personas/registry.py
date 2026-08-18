@@ -8,10 +8,11 @@ class Persona:
     name: str
     description: str
     system_prompt: str
-    voice_id: str
+    voice_id: str          # ElevenLabs voice id
     model: str
     max_tokens: int
     greeting: str
+    kokoro_voice: str = ""  # Kokoro voice name (used when tts_provider=kokoro)
 
 def load_core_character(personas_dir: str) -> str:
     path = Path(personas_dir) / "_core_character.md"
@@ -30,6 +31,7 @@ def load_personas(personas_dir: str) -> dict[str, Persona]:
             model=data.get("model", "claude-opus-4-8"),
             max_tokens=int(data.get("max_tokens", 1024)),
             greeting=data.get("greeting", ""),
+            kokoro_voice=data.get("kokoro_voice", ""),
         )
         personas[persona.id] = persona
     return personas

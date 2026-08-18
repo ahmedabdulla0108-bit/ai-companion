@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:app/models/persona.dart';
@@ -8,7 +10,8 @@ abstract class BackendClient {
   Future<ChatResult> chat({
     required String userId,
     required String personaId,
-    required String text,
+    String text = '',
+    Uint8List? audioBytes,
     String? conversationId,
   });
 }
@@ -45,13 +48,15 @@ class DioBackendClient implements BackendClient {
   Future<ChatResult> chat({
     required String userId,
     required String personaId,
-    required String text,
+    String text = '',
+    Uint8List? audioBytes,
     String? conversationId,
   }) async {
     final resp = await _dio.post('$baseUrl/chat', options: _opts, data: {
       'userId': userId,
       'personaId': personaId,
-      'text': text,
+      if (text.isNotEmpty) 'text': text,
+      if (audioBytes != null) 'audio': base64Encode(audioBytes),
       if (conversationId != null) 'conversationId': conversationId,
     });
     return ChatResult.fromJson(resp.data as Map<String, dynamic>);

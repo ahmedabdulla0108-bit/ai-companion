@@ -11,6 +11,7 @@ from app.store.conversation import ConversationStore
 from app.memory.store import FakeMemoryStore
 from app.providers.llm import FakeLlmClient, LlmError
 from app.providers.tts import FakeTtsClient
+from app.providers.transcribe import FakeTranscribeClient
 from app.chat_service import ChatService
 
 @pytest.fixture
@@ -60,6 +61,41 @@ def test_chat_unknown_persona_404(client):
 class _RaisingLlm:
     def complete(self, system, messages, model, max_tokens):
         raise LlmError("provider down")
+
+
+def test_chat_audio_without_transcriber_returns_502(client):
+    # The default client fixture has no transcriber; audio input must fail
+    # loudly rather than sending an empty message to the LLM.
+    audio_b64 = base64.b64encode(b"AUDIODATA").decode("ascii")
+    resp = client.post("/chat", headers=AUTH, json={
+        "userId": "u1", "personaId": "sage", "audio": audio_b64})
+    assert resp.status_code == 502
+
+
+def test_chat_transcribes_audio_and_returns_user_text(tmp_path):
+    def _settings():
+        return Settings(anthropic_api_key="x", elevenlabs_api_key="x",
+                        app_bearer_token="secret")
+    persona = Persona("sage", "Sage", "calm", "You are Sage.", "v1",
+                      "claude-opus-4-8", 1024, "Hi there")
+    svc = ChatService(
+        core="CORE", personas={"sage": persona},
+        store=ConversationStore(str(tmp_path / "c.db")),
+        memory=FakeMemoryStore(), llm=FakeLlmClient("Hello!"), tts=FakeTtsClient(b"MP3"),
+        transcribe=FakeTranscribeClient("hi from audio"),
+    )
+    app.dependency_overrides[get_settings] = _settings
+    app.dependency_overrides[get_chat_service] = lambda: svc
+    try:
+        audio_b64 = base64.b64encode(b"AUDIODATA").decode("ascii")
+        resp = TestClient(app).post("/chat", headers=AUTH, json={
+            "userId": "u1", "personaId": "sage", "audio": audio_b64})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["userText"] == "hi from audio"  # what Whisper "heard"
+        assert body["replyText"] == "Hello!"
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_chat_llm_error_returns_502(tmp_path):

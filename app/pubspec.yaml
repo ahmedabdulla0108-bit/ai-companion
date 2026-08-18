@@ -36,11 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   flutter_riverpod: ^2.5.1
-  speech_to_text: ^6.6.0
+  speech_to_text: ^7.0.0
   just_audio: ^0.9.36
   flutter_tts: ^3.8.5
   dio: ^5.4.0
   shared_preferences: ^2.2.2
+  record: ^5.1.0
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
