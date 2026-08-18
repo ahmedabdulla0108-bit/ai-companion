@@ -63,6 +63,15 @@ class _RaisingLlm:
         raise LlmError("provider down")
 
 
+def test_chat_audio_without_transcriber_returns_502(client):
+    # The default client fixture has no transcriber; audio input must fail
+    # loudly rather than sending an empty message to the LLM.
+    audio_b64 = base64.b64encode(b"AUDIODATA").decode("ascii")
+    resp = client.post("/chat", headers=AUTH, json={
+        "userId": "u1", "personaId": "sage", "audio": audio_b64})
+    assert resp.status_code == 502
+
+
 def test_chat_transcribes_audio_and_returns_user_text(tmp_path):
     def _settings():
         return Settings(anthropic_api_key="x", elevenlabs_api_key="x",

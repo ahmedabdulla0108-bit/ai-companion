@@ -102,3 +102,18 @@ def test_whisper_transcribe_wraps_errors(monkeypatch):
     c = WhisperTranscribeClient("https://x/v1", "gk")
     with pytest.raises(TranscribeError):
         c.transcribe(b"A")
+
+
+def test_personas_for_provider_swaps_to_kokoro_voice():
+    from app.deps import personas_for_provider
+    from app.config import Settings
+    from app.personas.registry import Persona
+
+    p = Persona("sage", "Sage", "d", "sys", "elabs-id", "m", 400, "hi", kokoro_voice="bm_george")
+    personas = {"sage": p}
+
+    kokoro = personas_for_provider(personas, Settings(tts_provider="kokoro"))
+    assert kokoro["sage"].voice_id == "bm_george"  # swapped to the Kokoro voice
+
+    elevenlabs = personas_for_provider(personas, Settings(tts_provider="elevenlabs"))
+    assert elevenlabs["sage"].voice_id == "elabs-id"  # untouched for ElevenLabs

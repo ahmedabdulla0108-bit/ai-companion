@@ -11,7 +11,7 @@ abstract class AudioCapture {
   Future<bool> ensurePermission();
 
   /// Records until the speaker pauses (or a max duration). Returns the encoded
-  /// audio bytes, or null if nothing was said.
+  /// audio bytes, or null if nothing was said or the turn was aborted via [stop].
   Future<Uint8List?> captureTurn();
 
   Future<void> stop();
@@ -19,6 +19,11 @@ abstract class AudioCapture {
 
 class AudioCaptureService implements AudioCapture {
   final AudioRecorder _rec = AudioRecorder();
+
+  // Active-turn handles so stop() can settle an in-flight capture.
+  Completer<void>? _active;
+  StreamSubscription<Amplitude>? _sub;
+  bool _aborted = false;
 
   // VAD tuning — amplitudes are dBFS (0 = loudest, more negative = quieter).
   static const double _speechThresholdDb = -30.0;
@@ -42,16 +47,22 @@ class AudioCaptureService implements AudioCapture {
       path: path,
     );
 
+    _aborted = false;
     final done = Completer<void>();
+    _active = done;
     var speechStarted = false;
     var silenceMs = 0;
     final start = DateTime.now();
 
-    final sub = _rec.onAmplitudeChanged(_pollInterval).listen((amp) {
+    void finish() {
+      if (!done.isCompleted) done.complete();
+    }
+
+    _sub = _rec.onAmplitudeChanged(_pollInterval).listen((amp) {
       if (done.isCompleted) return;
       final elapsed = DateTime.now().difference(start);
       if (elapsed >= _maxTurn) {
-        done.complete();
+        finish();
         return;
       }
       if (amp.current > _speechThresholdDb) {
@@ -59,18 +70,25 @@ class AudioCaptureService implements AudioCapture {
         silenceMs = 0;
       } else if (speechStarted) {
         silenceMs += _pollInterval.inMilliseconds;
-        if (silenceMs >= _silenceToEnd.inMilliseconds) done.complete();
+        if (silenceMs >= _silenceToEnd.inMilliseconds) finish();
       } else if (elapsed >= _noSpeechTimeout) {
-        done.complete(); // gave up waiting for any speech
+        finish(); // gave up waiting for any speech
       }
     });
 
     await done.future;
-    await sub.cancel();
-    final resultPath = await _rec.stop();
+    await _sub?.cancel();
+    _sub = null;
+    _active = null;
 
+    if (_aborted) {
+      // stop() already halted the recorder and owns cleanup.
+      return null;
+    }
+
+    final resultPath = await _rec.stop();
     if (!speechStarted || resultPath == null) {
-      _tryDelete(resultPath);
+      _tryDelete(resultPath ?? path);
       return null;
     }
     try {
@@ -84,6 +102,12 @@ class AudioCaptureService implements AudioCapture {
 
   @override
   Future<void> stop() async {
+    _aborted = true;
+    await _sub?.cancel();
+    _sub = null;
+    final active = _active;
+    _active = null;
+    if (active != null && !active.isCompleted) active.complete();
     if (await _rec.isRecording()) await _rec.stop();
   }
 

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from functools import lru_cache
 from app.config import Settings, get_settings
 from app.personas.registry import load_core_character, load_personas
@@ -29,6 +30,17 @@ def _build_tts(s: Settings):
     return FakeTtsClient(None)
 
 
+def personas_for_provider(personas: dict, s: Settings) -> dict:
+    """When Kokoro is the TTS provider, swap each persona's ElevenLabs voice_id
+    for its Kokoro voice so the Kokoro client gets a valid voice name."""
+    if s.tts_provider == "kokoro":
+        return {
+            pid: replace(p, voice_id=(p.kokoro_voice or s.kokoro_voice))
+            for pid, p in personas.items()
+        }
+    return personas
+
+
 def _build_transcribe(s: Settings):
     if s.stt_provider == "whisper":
         base = s.whisper_base_url or s.openai_base_url
@@ -42,7 +54,7 @@ def _build_transcribe(s: Settings):
 def get_chat_service() -> ChatService:
     s = get_settings()
     core = load_core_character(s.personas_dir)
-    personas = load_personas(s.personas_dir)
+    personas = personas_for_provider(load_personas(s.personas_dir), s)
     store = ConversationStore(s.conversation_db_path)
     llm = _build_llm(s)
     tts = _build_tts(s)

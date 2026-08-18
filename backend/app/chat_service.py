@@ -7,7 +7,7 @@ from app.store.conversation import ConversationStore
 from app.memory.store import MemoryStore
 from app.providers.llm import LlmClient
 from app.providers.tts import TtsClient
-from app.providers.transcribe import TranscribeClient
+from app.providers.transcribe import TranscribeClient, TranscribeError
 
 @dataclass
 class ChatResult:
@@ -35,8 +35,15 @@ class ChatService:
         persona = self.personas[persona_id]  # KeyError -> 404 at route layer
         conversation_id = conversation_id or uuid.uuid4().hex
 
-        # If raw audio was sent, transcribe it server-side (Whisper).
-        if audio is not None and self.transcribe is not None:
+        # If raw audio was sent, transcribe it server-side (Whisper). Fail
+        # loudly if no transcriber is configured rather than sending an empty
+        # message to the LLM.
+        if audio is not None:
+            if self.transcribe is None:
+                raise TranscribeError(
+                    "Received audio but no speech-to-text provider is configured "
+                    "(set STT_PROVIDER=whisper)."
+                )
             text = self.transcribe.transcribe(audio)
 
         memories = self.memory.search(user_id, text)
