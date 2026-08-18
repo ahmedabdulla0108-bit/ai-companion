@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app/state/conversation_state.dart';
 import 'package:app/state/providers.dart';
+import 'package:app/screens/persona_picker_screen.dart';
+import 'package:app/screens/settings_screen.dart';
 
 class TalkScreen extends ConsumerWidget {
   const TalkScreen({super.key});
@@ -33,7 +35,19 @@ class TalkScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Companion — ${state.activePersonaId}')),
+      appBar: AppBar(
+        title: Text('Companion — ${state.activePersonaId}'),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.people),
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PersonaPickerScreen()))),
+          IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
