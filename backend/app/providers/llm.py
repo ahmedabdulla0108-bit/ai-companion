@@ -1,5 +1,7 @@
 from typing import Protocol
 
+import httpx
+
 
 class LlmError(RuntimeError):
     """Raised when the upstream LLM provider call fails (rate limit, timeout,
@@ -49,3 +51,38 @@ class ClaudeLlmClient:
             if block.type == "text":
                 return block.text
         return ""
+
+
+class OpenAiCompatLlmClient:
+    """LLM client for any OpenAI-compatible chat/completions gateway (e.g.
+    OmniRoute). Prepends the system prompt as a system message. When
+    model_override is set it is used instead of the per-persona model, so a
+    single gateway model can serve every persona."""
+
+    def __init__(self, base_url: str, api_key: str, model_override: str = "", timeout: float = 60.0):
+        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
+        self._model_override = model_override
+        self._timeout = timeout
+
+    def complete(self, system: str, messages: list[dict], model: str, max_tokens: int) -> str:
+        payload_messages = [{"role": "system", "content": system}, *messages]
+        headers = {"content-type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        try:
+            resp = httpx.post(
+                f"{self._base_url}/chat/completions",
+                headers=headers,
+                json={
+                    "model": self._model_override or model,
+                    "max_tokens": max_tokens,
+                    "messages": payload_messages,
+                },
+                timeout=self._timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"] or ""
+        except Exception as e:  # noqa: BLE001 - surface as provider error → 502
+            raise LlmError(f"OpenAI-compatible LLM request failed: {e}") from e
